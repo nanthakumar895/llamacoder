@@ -66,7 +66,7 @@ export default function CodeViewer({
   ): { code: string; language: string; path: string } | undefined {
     if (!input) return undefined;
     const lines = input.split("\n");
-    const codeFenceRegex = /^```([^\n]*)$/;
+    const codeFenceRegex = /^```([^\n]*?)\s*$/;
 
     let openTag: string | null = null;
     let codeBuffer: string[] = [];
@@ -76,23 +76,23 @@ export default function CodeViewer({
 
     for (const line of lines) {
       const match = line.match(codeFenceRegex);
-      if (match && !openTag) {
+      if (match && openTag === null) {
         // Opening a fence
         openTag = match[1] || "";
         codeBuffer = [];
-      } else if (match && openTag) {
+      } else if (match && openTag !== null) {
         // Closing the fence
         const { language, path } = parseTag(openTag);
         latestComplete = { code: codeBuffer.join("\n"), language, path };
         openTag = null;
         codeBuffer = [];
-      } else if (openTag) {
+      } else if (openTag !== null) {
         codeBuffer.push(line);
       }
     }
 
     // If an open fence remains at end, return it as partial; else return latest complete
-    if (openTag) {
+    if (openTag !== null) {
       const { language, path } = parseTag(openTag);
       return { code: codeBuffer.join("\n"), language, path };
     }
