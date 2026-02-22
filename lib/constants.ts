@@ -6,12 +6,12 @@ export interface Model {
 
 export const MODELS: Model[] = [
   {
-    label: "Gemini 2.0 Flash",
-    value: "gemini-2.0-flash",
-  },
-  {
     label: "Gemini 1.5 Flash",
     value: "gemini-1.5-flash",
+  },
+  {
+    label: "Gemini 2.0 Flash",
+    value: "gemini-2.0-flash",
   },
   {
     label: "Gemini 1.5 Pro",

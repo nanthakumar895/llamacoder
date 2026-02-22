@@ -10,7 +10,18 @@ export async function POST(request: NextRequest) {
   try {
     const { prompt, model, quality, screenshotUrl } = await request.json();
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || apiKey === "AIzaSyCjG2WIi-2DDKHEo27ccaogbeL-Un1SsLk") {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid or missing Gemini API key. Please set a valid GEMINI_API_KEY in your environment variables.",
+        },
+        { status: 401 },
+      );
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
     const geminiModel = genAI.getGenerativeModel({
       model: model || "gemini-1.5-flash",
     });
