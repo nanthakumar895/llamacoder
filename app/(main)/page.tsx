@@ -275,6 +275,14 @@ export default function Home() {
                   handleSubmit();
                 }
               }}
+              onPaste={(e) => {
+                const text = e.clipboardData.getData("text");
+                if (text && text.includes("llamacoder.io/share/")) {
+                  e.preventDefault();
+                  const cleanedText = text.replace(/https?:\/\/llamacoder\.io\/share\/[a-zA-Z0-9-]+\s?/g, "");
+                  setPrompt(cleanedText);
+                }
+              }}
               placeholder="Design a personal budget tracker with income/expense categories, charts, and monthly reports..."
               className="w-full min-h-[140px] sm:min-h-[180px] resize-none outline-none bg-transparent text-gray-700 text-base sm:text-lg placeholder:text-gray-400 pr-16 sm:pr-20 pb-24"
             />
