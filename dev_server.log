@@ -5,7 +5,8 @@
 ▲ Next.js 16.1.6 (Turbopack)
 - Local:         http://localhost:3000
 - Network:       http://192.168.0.2:3000
+- Environments: .env
 
 ✓ Starting...
-✓ Ready in 1115ms
- GET / 200 in 1054ms
+✓ Ready in 1229ms
+ POST /api/create-chat 401 in 316ms (compile: 284ms, render: 32ms)

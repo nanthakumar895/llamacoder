@@ -157,12 +157,17 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("Error creating chat:", error);
+    let errorMessage = "Failed to create chat";
+    if (error.message?.includes("API key not valid")) {
+      errorMessage = "Invalid Gemini API Key. Please check your GEMINI_API_KEY in your .env file.";
+    } else if (error.message?.includes("quota")) {
+      errorMessage = "Gemini API quota exceeded. Please try again later.";
+    } else if (error.message) {
+      errorMessage = `Gemini API Error: ${error.message}`;
+    }
+
     return NextResponse.json(
-      {
-        error: error.message?.includes("API key not valid")
-          ? "Invalid Gemini API Key. Please check your GEMINI_API_KEY."
-          : "Failed to create chat",
-      },
+      { error: errorMessage },
       { status: 500 },
     );
   }

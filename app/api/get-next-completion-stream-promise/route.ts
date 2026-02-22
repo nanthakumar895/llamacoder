@@ -145,9 +145,19 @@ export async function POST(req: Request) {
         Connection: "keep-alive",
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in get-next-completion-stream-promise:", error);
-    return new Response(JSON.stringify({ error: (error as Error).message }), {
+    let errorMessage = (error as Error).message || "An unexpected error occurred during streaming.";
+
+    if (errorMessage.includes("API key not valid")) {
+      errorMessage = "Invalid Gemini API Key. Please check your GEMINI_API_KEY in your .env file.";
+    } else if (errorMessage.includes("quota")) {
+      errorMessage = "Gemini API quota exceeded. Please try again later.";
+    } else {
+      errorMessage = `Gemini API Error: ${errorMessage}`;
+    }
+
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
