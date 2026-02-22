@@ -1,33 +1,31 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import Fieldset from "@/components/fieldset";
-import ArrowRightIcon from "@/components/icons/arrow-right";
-import LightningBoltIcon from "@/components/icons/lightning-bolt";
-import LoadingButton from "@/components/loading-button";
-import Spinner from "@/components/spinner";
-// @ts-ignore
-import bgImg from "@/public/halo.png";
-import * as Select from "@radix-ui/react-select";
-import { CheckIcon, ChevronDownIcon } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import {
+import React, {
   use,
   useState,
   useRef,
   useTransition,
   useEffect,
   useMemo,
-  memo,
 } from "react";
-
+import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import {
+  Globe,
+  ArrowUp,
+  ChevronDown,
+  Check,
+  Plus,
+  Github,
+  User,
+  X,
+} from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { Context } from "./providers";
-import Header from "@/components/header";
-import UploadIcon from "@/components/icons/upload-icon";
 import { MODELS, SUGGESTED_PROMPTS } from "@/lib/constants";
 import { saveChat } from "@/lib/utils";
+import Spinner from "@/components/spinner";
 
 export default function Home() {
   const { setStreamPromise } = use(Context);
@@ -46,6 +44,11 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const [modelOpen, setModelOpen] = useState(false);
+  const [qualityOpen, setQualityOpen] = useState(false);
+  const modelRef = useRef<HTMLDivElement | null>(null);
+  const qualityRef = useRef<HTMLDivElement | null>(null);
+
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -54,23 +57,42 @@ export default function Home() {
     }
   }, []);
 
-  const selectedModel = useMemo(
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node;
+      if (modelRef.current && !modelRef.current.contains(target))
+        setModelOpen(false);
+      if (qualityRef.current && !qualityRef.current.contains(target))
+        setQualityOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedModelObj = useMemo(
     () => MODELS.find((m) => m.value === model),
     [model],
   );
 
-  const qualityOptions = useMemo(
-    () => [
-      { value: "low", label: "Low quality [faster]" },
-      { value: "high", label: "High quality [slower]" },
-    ],
-    [],
+  const qualityOptions = [
+    { value: "low", label: "Low quality [faster]" },
+    { value: "high", label: "High quality [slower]" },
+  ];
+
+  const selectedQualityLabel = useMemo(
+    () => qualityOptions.find((q) => q.value === quality)?.label,
+    [quality],
   );
+
   const handleScreenshotUpload = async (event: any) => {
     if (prompt.length === 0) setPrompt("Build this");
     setQuality("low");
     setScreenshotLoading(true);
     let file = event.target.files[0];
+    if (!file) {
+      setScreenshotLoading(false);
+      return;
+    }
     const reader = new FileReader();
     reader.onloadend = () => {
       setScreenshotUrl(reader.result as string);
@@ -79,467 +101,316 @@ export default function Home() {
     reader.readAsDataURL(file);
   };
 
-  const textareaResizePrompt = useMemo(
-    () =>
-      prompt
-        .split("\n")
-        .map((text) => (text === "" ? "a" : text))
-        .join("\n"),
-    [prompt],
-  );
+  const handleSubmit = async () => {
+    setError(null);
+    if (!prompt.trim()) return;
+
+    startTransition(async () => {
+      try {
+        const response = await fetch("/api/create-chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            prompt,
+            model,
+            quality,
+            screenshotUrl,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            errorData.error || "Failed to create chat. Please try again.",
+          );
+        }
+
+        const { chatId, messages, title } = await response.json();
+
+        // Save to local storage
+        const newChat = {
+          id: chatId,
+          title: title || prompt.slice(0, 50),
+          model,
+          quality,
+          messages,
+          createdAt: new Date().toISOString(),
+        };
+        saveChat(newChat);
+
+        const streamPromise = fetch("/api/get-next-completion-stream-promise", {
+          method: "POST",
+          body: JSON.stringify({ messages, model }),
+        }).then(async (res) => {
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData.error || "Failed to start stream");
+          }
+          if (!res.body) {
+            throw new Error("No body on response");
+          }
+          return res.body;
+        });
+
+        setStreamPromise(streamPromise);
+        router.push(`/chats/${chatId}`);
+      } catch (e: any) {
+        setError(e.message || "An unexpected error occurred.");
+      }
+    });
+  };
 
   return (
-    <div className="relative flex grow flex-col">
-      <div className="absolute inset-0 flex justify-center">
-        <Image
-          src={bgImg}
-          alt=""
-          className="max-h-[953px] w-full max-w-[1200px] object-cover object-top mix-blend-screen"
-          priority
-        />
-      </div>
-
-      <div className="isolate flex h-full grow flex-col">
-        <Header />
-
-        <div className="mt-10 flex grow flex-col items-center px-4 lg:mt-16">
-          <div className="mb-4 inline-flex shrink-0 items-center rounded-full border-[0.5px] border-[#BABABA] px-3.5 py-1.5 text-xs text-black transition-shadow">
-            <span className="text-center">
-              Powered by <span className="font-semibold">Gemini AI</span>.
-              Used by
-              <span className="font-semibold"> 1.1M+ users. </span>
-            </span>
+    <div className="min-h-screen w-full bg-gradient-to-br from-sky-200 via-slate-100 to-slate-200 flex flex-col relative overflow-x-hidden">
+      <div className="w-full max-w-7xl mx-auto mt-4 px-4 sm:px-6">
+        <div className="flex items-center justify-between bg-white/80 backdrop-blur-md shadow-md rounded-2xl sm:rounded-full px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-orange-500 rounded-full" />
+            <span className="text-lg sm:text-xl font-semibold">Nuvic</span>
           </div>
 
-          <h1 className="mt-4 text-balance text-center text-4xl leading-none text-gray-700 md:text-[64px] lg:mt-8">
-            Turn your <span className="text-blue-500">idea</span>
-            <br className="hidden md:block" /> into an{" "}
-            <span className="text-blue-500">app</span>
-          </h1>
+          <div className="hidden md:flex items-center gap-8 text-gray-700 font-medium">
+            <span>Product</span>
+            <span>Pricing</span>
+            <span>Enterprise</span>
+          </div>
 
-          <form
-            className="relative w-full max-w-2xl pt-6 lg:pt-12"
-            action={async (formData) => {
-              setError(null);
-              startTransition(async () => {
-                try {
-                  const { prompt, model, quality } =
-                    Object.fromEntries(formData);
+          <div className="flex items-center gap-3">
+            <Globe className="w-5 h-5 text-gray-600" />
 
-                  if (typeof prompt !== "string" || prompt.trim() === "") {
-                    throw new Error("Please enter a prompt.");
-                  }
-                  if (typeof model !== "string") {
-                    throw new Error("Please select a model.");
-                  }
-                  if (quality !== "high" && quality !== "low") {
-                    throw new Error("Please select a valid quality.");
-                  }
+            <button
+              type="button"
+              className="sm:hidden w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center"
+            >
+              <User className="w-5 h-5 text-gray-700" />
+            </button>
 
-                  const response = await fetch("/api/create-chat", {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                      prompt,
-                      model,
-                      quality,
-                      screenshotUrl,
-                    }),
-                  });
+            <button
+              type="button"
+              className="hidden sm:flex relative w-10 h-10 rounded-full bg-gradient-to-tr from-orange-500 to-orange-400 items-center justify-center shadow-md hover:scale-105 transition"
+            >
+              <span className="text-white text-sm font-semibold">U</span>
+              <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-white rounded-full" />
+            </button>
+          </div>
+        </div>
+      </div>
 
-                  if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(
-                      errorData.error || "Failed to create chat. Please try again.",
-                    );
-                  }
+      <div className="flex flex-col items-center text-center mt-16 sm:mt-24 px-4 sm:px-6 grow pb-20">
+        <motion.h1
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="text-3xl sm:text-5xl md:text-6xl font-semibold text-gray-900"
+        >
+          Turn your ideas into apps
+        </motion.h1>
 
-                  const { chatId, messages, title } = await response.json();
+        <p className="mt-4 sm:mt-6 text-base sm:text-lg text-gray-600 max-w-2xl">
+          Nuvic lets you build fully-functional apps in minutes with just your
+          words. No coding necessary.
+        </p>
 
-                  // Save to local storage
-                  const newChat = {
-                    id: chatId,
-                    title: title || prompt.slice(0, 50),
-                    model,
-                    quality,
-                    messages,
-                    createdAt: new Date().toISOString(),
-                  };
-                  saveChat(newChat);
+        <Card className="mt-10 sm:mt-12 w-full max-w-3xl rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-8 bg-white/90 backdrop-blur-md relative overflow-hidden">
+          {isPending && (
+            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
+              <span className="mb-4 text-gray-600 font-medium animate-pulse">
+                {quality === "high"
+                  ? "Coming up with project plan..."
+                  : screenshotUrl
+                    ? "Analyzing screenshot..."
+                    : "Creating your app..."}
+              </span>
+              <Spinner />
+            </div>
+          )}
 
-                  const streamPromise = fetch(
-                    "/api/get-next-completion-stream-promise",
-                    {
-                      method: "POST",
-                      body: JSON.stringify({ messages, model }),
-                    },
-                  ).then(async (res) => {
-                    if (!res.ok) {
-                      const errorData = await res.json().catch(() => ({}));
-                      throw new Error(
-                        errorData.error || "Failed to start stream",
-                      );
-                    }
-                    if (!res.body) {
-                      throw new Error("No body on response");
-                    }
-                    return res.body;
-                  });
+          <div className="relative">
+            {screenshotUrl && (
+              <div className="relative mb-4 inline-block">
+                <img
+                  src={screenshotUrl}
+                  alt="Screenshot"
+                  className="h-20 w-auto rounded-lg shadow-md border border-gray-200"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScreenshotUrl(undefined);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }}
+                  className="absolute -top-2 -right-2 bg-white rounded-full p-1 shadow-md border border-gray-100 hover:bg-gray-50"
+                >
+                  <X className="w-3 h-3 text-gray-600" />
+                </button>
+              </div>
+            )}
+            {screenshotLoading && (
+              <div className="mb-4 flex items-center gap-2 text-sm text-gray-500 italic">
+                <Spinner />
+                <span>Uploading screenshot...</span>
+              </div>
+            )}
 
-                  setStreamPromise(streamPromise);
-                  router.push(`/chats/${chatId}`);
-                } catch (e: any) {
-                  setError(e.message || "An unexpected error occurred.");
+            <textarea
+              ref={textareaRef}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit();
                 }
-              });
-            }}
-          >
-            <Fieldset>
-              <div className="relative flex w-full max-w-2xl rounded-xl border border-gray-300 bg-white pb-10">
-                <div className="w-full">
-                  {screenshotLoading && (
-                    <div className="relative mx-3 mt-3">
-                      <div className="rounded-xl">
-                        <div className="group mb-2 flex h-16 w-[68px] animate-pulse items-center justify-center rounded bg-gray-200">
-                          <Spinner />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {screenshotUrl && (
-                    <div
-                      className={`${isPending ? "invisible" : ""} relative mx-3 mt-3`}
-                    >
-                      <div className="rounded-xl">
-                        <img
-                          alt="screenshot"
-                          src={screenshotUrl}
-                          className="group relative mb-2 h-16 w-[68px] rounded object-cover"
-                        />
-                      </div>
+              }}
+              placeholder="Design a personal budget tracker with income/expense categories, charts, and monthly reports..."
+              className="w-full min-h-[140px] sm:min-h-[180px] resize-none outline-none bg-transparent text-gray-700 text-base sm:text-lg placeholder:text-gray-400 pr-16 sm:pr-20 pb-24"
+            />
+
+            <div className="absolute bottom-4 left-4 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                title="Attach screenshot"
+              >
+                <Plus className="w-4 h-4 text-gray-700" />
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/*"
+                onChange={handleScreenshotUpload}
+              />
+            </div>
+
+            <div className="absolute bottom-4 left-14 sm:left-16 flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm text-gray-600">
+              <div className="relative" ref={modelRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModelOpen((prev) => !prev);
+                    setQualityOpen(false);
+                  }}
+                  className="flex items-center gap-1 bg-gray-100 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  <span className="truncate max-w-[110px] sm:max-w-none">
+                    {selectedModelObj?.label}
+                  </span>
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                </button>
+
+                {modelOpen && (
+                  <div className="absolute bottom-12 left-0 w-52 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-50">
+                    {MODELS.filter((m) => !m.hidden).map((m) => (
                       <button
+                        key={m.value}
                         type="button"
-                        id="x-circle-icon"
-                        className="absolute -right-3 -top-4 left-14 z-10 size-5 rounded-full bg-white text-gray-900 hover:text-gray-500"
                         onClick={() => {
-                          setScreenshotUrl(undefined);
-                          if (fileInputRef.current) {
-                            fileInputRef.current.value = "";
-                          }
+                          setModel(m.value);
+                          setModelOpen(false);
                         }}
+                        className="w-full flex items-center justify-between px-4 py-2 text-left hover:bg-gray-100 text-sm transition-colors"
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          strokeWidth={1.5}
-                          stroke="currentColor"
-                          className="size-6"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-                          />
-                        </svg>
+                        <span>{m.label}</span>
+                        {model === m.value && (
+                          <Check className="w-4 h-4 text-blue-600" />
+                        )}
                       </button>
-                    </div>
-                  )}
-                  <div className="relative">
-                    <div className="p-3">
-                      <p className="invisible w-full whitespace-pre-wrap">
-                        {textareaResizePrompt}
-                      </p>
-                    </div>
-                    <textarea
-                      ref={textareaRef}
-                      placeholder="Build me a budgeting app..."
-                      required
-                      name="prompt"
-                      rows={2}
-                      className="peer absolute inset-0 w-full resize-none bg-transparent px-4 py-3 placeholder-gray-500 focus-visible:outline-none disabled:opacity-50"
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
-                      onPaste={(e) => {
-                        // Clean up pasted text
-                        e.preventDefault();
-                        const pastedText = e.clipboardData.getData("text");
-
-                        // Normalize line endings and clean up whitespace
-                        const cleanedText = pastedText
-                          .replace(/\r\n/g, "\n") // Convert Windows line endings
-                          .replace(/\r/g, "\n") // Convert old Mac line endings
-                          .replace(/\n{3,}/g, "\n\n") // Max 2 consecutive newlines
-                          .trim(); // Remove leading/trailing whitespace
-
-                        // Insert the cleaned text at cursor position
-                        const textarea = e.target as HTMLTextAreaElement;
-                        const start = textarea.selectionStart;
-                        const end = textarea.selectionEnd;
-                        const newValue =
-                          prompt.slice(0, start) +
-                          cleanedText +
-                          prompt.slice(end);
-
-                        setPrompt(newValue);
-
-                        // Set cursor position after the pasted text
-                        setTimeout(() => {
-                          if (textareaRef.current) {
-                            textareaRef.current.selectionStart =
-                              start + cleanedText.length;
-                            textareaRef.current.selectionEnd =
-                              start + cleanedText.length;
-                          }
-                        }, 0);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" && !event.shiftKey) {
-                          event.preventDefault();
-                          const target = event.target;
-                          if (!(target instanceof HTMLTextAreaElement)) return;
-                          target.closest("form")?.requestSubmit();
-                        }
-                      }}
-                    />
+                    ))}
                   </div>
-                </div>
-                <div className="absolute bottom-2 left-3 right-2.5 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Select.Root
-                      name="model"
-                      value={model}
-                      onValueChange={setModel}
-                    >
-                      <Select.Trigger className="inline-flex items-center gap-1 rounded-md p-1 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-300">
-                        <Select.Value aria-label={model}>
-                          <span>{selectedModel?.label}</span>
-                        </Select.Value>
-                        <Select.Icon>
-                          <ChevronDownIcon className="size-3" />
-                        </Select.Icon>
-                      </Select.Trigger>
-                      <Select.Portal>
-                        <Select.Content className="overflow-hidden rounded-md bg-white shadow ring-1 ring-black/5">
-                          <Select.Viewport className="space-y-1 p-2">
-                            {MODELS.filter((m) => !m.hidden).map((m) => (
-                              <Select.Item
-                                key={m.value}
-                                value={m.value}
-                                className="flex cursor-pointer items-center gap-1 rounded-md p-1 text-sm data-[highlighted]:bg-gray-100 data-[highlighted]:outline-none"
-                              >
-                                <Select.ItemText className="inline-flex items-center gap-2 text-gray-500">
-                                  {m.label}
-                                </Select.ItemText>
-                                <Select.ItemIndicator>
-                                  <CheckIcon className="size-3 text-blue-600" />
-                                </Select.ItemIndicator>
-                              </Select.Item>
-                            ))}
-                          </Select.Viewport>
-                          <Select.ScrollDownButton />
-                          <Select.Arrow />
-                        </Select.Content>
-                      </Select.Portal>
-                    </Select.Root>
-
-                    <div className="h-4 w-px bg-gray-200 max-sm:hidden" />
-
-                    <Select.Root
-                      name="quality"
-                      value={quality}
-                      onValueChange={setQuality}
-                    >
-                      <Select.Trigger className="inline-flex items-center gap-1 rounded p-1 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-300">
-                        <Select.Value aria-label={quality}>
-                          <span className="max-sm:hidden">
-                            {quality === "low"
-                              ? "Low quality [faster]"
-                              : "High quality [slower]"}
-                          </span>
-                          <span className="sm:hidden">
-                            <LightningBoltIcon className="size-3" />
-                          </span>
-                        </Select.Value>
-                        <Select.Icon>
-                          <ChevronDownIcon className="size-3" />
-                        </Select.Icon>
-                      </Select.Trigger>
-                      <Select.Portal>
-                        <Select.Content className="overflow-hidden rounded-md bg-white shadow ring-1 ring-black/5">
-                          <Select.Viewport className="space-y-1 p-2">
-                            {qualityOptions.map((q) => (
-                              <Select.Item
-                                key={q.value}
-                                value={q.value}
-                                className="flex cursor-pointer items-center gap-1 rounded-md p-1 text-sm data-[highlighted]:bg-gray-100 data-[highlighted]:outline-none"
-                              >
-                                <Select.ItemText className="inline-flex items-center gap-2 text-gray-500">
-                                  {q.label}
-                                </Select.ItemText>
-                                <Select.ItemIndicator>
-                                  <CheckIcon className="size-3 text-blue-600" />
-                                </Select.ItemIndicator>
-                              </Select.Item>
-                            ))}
-                          </Select.Viewport>
-                          <Select.ScrollDownButton />
-                          <Select.Arrow />
-                        </Select.Content>
-                      </Select.Portal>
-                    </Select.Root>
-                    <div className="h-4 w-px bg-gray-200 max-sm:hidden" />
-                    <div>
-                      <label
-                        htmlFor="screenshot"
-                        className="flex cursor-pointer gap-2 text-sm text-gray-400 hover:underline"
-                      >
-                        <div className="flex size-6 items-center justify-center rounded bg-black hover:bg-gray-700">
-                          <UploadIcon className="size-4" />
-                        </div>
-                        <div className="flex items-center justify-center transition hover:text-gray-700">
-                          Attach
-                        </div>
-                      </label>
-                      <input
-                        // name="screenshot"
-                        id="screenshot"
-                        type="file"
-                        accept="image/png, image/jpeg, image/webp"
-                        onChange={handleScreenshotUpload}
-                        className="hidden"
-                        ref={fileInputRef}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="relative flex shrink-0 has-[:disabled]:opacity-50">
-                    <div className="pointer-events-none absolute inset-0 -bottom-[1px] rounded bg-blue-500" />
-
-                    <LoadingButton
-                      className="relative inline-flex size-6 items-center justify-center rounded bg-blue-500 font-medium text-white shadow-lg outline-blue-300 hover:bg-blue-500/75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-90"
-                      type="submit"
-                      disabled={screenshotLoading || prompt.length === 0}
-                    >
-                      <ArrowRightIcon />
-                    </LoadingButton>
-                  </div>
-                </div>
-
-                {isPending && (
-                  <LoadingMessage
-                    isHighQuality={quality === "high"}
-                    screenshotUrl={screenshotUrl}
-                  />
                 )}
               </div>
 
-              {error && (
-                <div className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-600">
-                  {error}
-                </div>
-              )}
-              <div className="mt-4 flex w-full flex-wrap justify-between gap-2.5">
-                {SUGGESTED_PROMPTS.map((v) => (
-                  <button
-                    key={v.title}
-                    type="button"
-                    onClick={() => {
-                      setPrompt(v.description);
-                      // Refocus the textarea after setting the prompt
-                      setTimeout(() => {
-                        textareaRef.current?.focus();
-                        // Position cursor at the end
-                        if (textareaRef.current) {
-                          textareaRef.current.selectionStart =
-                            textareaRef.current.value.length;
-                          textareaRef.current.selectionEnd =
-                            textareaRef.current.value.length;
-                        }
-                      }, 0);
-                    }}
-                    className="rounded bg-[#E5E9EF] px-2.5 py-1.5 text-xs tracking-[0%] transition-colors hover:bg-[#cccfd5]"
-                  >
-                    {v.title}
-                  </button>
-                ))}
+              <div className="relative hidden sm:block" ref={qualityRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQualityOpen((prev) => !prev);
+                    setModelOpen(false);
+                  }}
+                  className="flex items-center gap-1 bg-gray-100 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  <span className="truncate max-w-[110px] sm:max-w-none">
+                    {selectedQualityLabel}
+                  </span>
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                </button>
+
+                {qualityOpen && (
+                  <div className="absolute bottom-12 left-0 w-56 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-50">
+                    {qualityOptions.map((q) => (
+                      <button
+                        key={q.value}
+                        type="button"
+                        onClick={() => {
+                          setQuality(q.value);
+                          setQualityOpen(false);
+                        }}
+                        className="w-full flex items-center justify-between px-4 py-2 text-left hover:bg-gray-100 text-sm transition-colors"
+                      >
+                        <span>{q.label}</span>
+                        {quality === q.value && (
+                          <Check className="w-4 h-4 text-blue-600" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            </Fieldset>
-          </form>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isPending || !prompt.trim()}
+              className="absolute bottom-4 right-4 group disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-orange-500 to-orange-400 flex items-center justify-center shadow-xl transition-all duration-200 group-hover:scale-105 group-active:scale-95">
+                <ArrowUp className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+              </div>
+            </button>
+          </div>
+        </Card>
+
+        {error && (
+          <div className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-600 max-w-3xl">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-10 sm:mt-12 text-gray-600 font-medium tracking-wide text-xs sm:text-sm">
+          NOT SURE WHERE TO START? TRY ONE OF THESE:
         </div>
 
-        <Footer />
-      </div>
-    </div>
-  );
-}
-
-const Footer = memo(() => {
-  return (
-    <footer className="flex w-full flex-col items-center justify-between space-y-3 px-5 pb-3 pt-5 text-center sm:flex-row sm:pt-2">
-      <div>
-        <div className="font-medium">
-          Built with{" "}
-          <span className="font-semibold text-blue-600">Gemini AI</span>.
+        <div className="mt-4 sm:mt-6 flex flex-wrap justify-center gap-3 sm:gap-4 max-w-3xl">
+          {SUGGESTED_PROMPTS.map((item) => (
+            <motion.div
+              key={item.title}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                setPrompt(item.description);
+                textareaRef.current?.focus();
+              }}
+              className="px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-white/80 backdrop-blur-md shadow-md cursor-pointer text-gray-800 text-sm sm:text-base font-medium hover:bg-white transition-colors"
+            >
+              {item.title}
+            </motion.div>
+          ))}
         </div>
       </div>
-      <div className="flex items-center gap-4 pb-4 sm:pb-0">
-        <Link href="https://x.com/nutlope" className="group" aria-label="">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 fill-slate-500 group-hover:fill-slate-700"
-          >
-            <path
-              fillRule="evenodd"
-              clipRule="evenodd"
-              d="M10.7465 16L6.8829 10.2473L2.04622 16H0L5.97508 8.89534L0 0H5.25355L8.8949 5.42183L13.4573 0H15.5036L9.80578 6.77562L16 16H10.7465ZM13.0252 14.3782H11.6475L2.92988 1.62182H4.30767L7.79916 6.72957L8.40293 7.6159L13.0252 14.3782Z"
-              fill="#71717a"
-            />
-          </svg>
-        </Link>
-        <Link
-          href="https://github.com/Nutlope/llamacoder"
-          className="group"
-          aria-label=""
-        >
-          <svg
-            aria-hidden="true"
-            className="h-6 w-6 fill-slate-500 group-hover:fill-slate-700"
-          >
-            <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2Z" />
-          </svg>
-        </Link>
-      </div>
-    </footer>
-  );
-});
 
-function LoadingMessage({
-  isHighQuality,
-  screenshotUrl,
-}: {
-  isHighQuality: boolean;
-  screenshotUrl: string | undefined;
-}) {
-  return (
-    <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-white px-1 py-3 md:px-3">
-      <div className="flex flex-col items-center justify-center gap-2 text-gray-500">
-        <span className="animate-pulse text-balance text-center text-sm md:text-base">
-          {isHighQuality
-            ? `Coming up with project plan, may take 15 seconds...`
-            : screenshotUrl
-              ? "Analyzing your screenshot..."
-              : `Creating your app...`}
-        </span>
-
-        <Spinner />
-      </div>
+      <a
+        href="https://github.com/Nutlope/llamacoder"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-4 right-4 flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors z-50 shadow-sm"
+      >
+        <Github className="w-4 h-4 text-gray-700" />
+      </a>
     </div>
   );
 }
