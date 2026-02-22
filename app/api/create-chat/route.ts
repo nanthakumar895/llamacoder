@@ -10,7 +10,19 @@ export async function POST(request: NextRequest) {
   try {
     const { prompt, model, quality, screenshotUrl } = await request.json();
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
+
+    if (!apiKey) {
+      return NextResponse.json(
+        {
+          error:
+            "Missing Gemini API Key. Please add GEMINI_API_KEY to your .env file.",
+        },
+        { status: 401 },
+      );
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
     const geminiModel = genAI.getGenerativeModel({
       model: model || "gemini-1.5-flash",
     });
@@ -21,8 +33,11 @@ export async function POST(request: NextRequest) {
           `You are a chatbot helping the user create a simple app or script, and your current job is to create a succinct title, maximum 3-5 words, for the chat given their initial prompt: "${prompt}". Please return only the title.`,
         );
         return responseForChatTitle.response.text() || prompt;
-      } catch (e) {
+      } catch (e: any) {
         console.error("Error fetching title:", e);
+        if (e.message?.includes("API key not valid")) {
+          throw e;
+        }
         return prompt;
       }
     }
@@ -43,8 +58,11 @@ export async function POST(request: NextRequest) {
         const mostSimilarExample =
           findSimilarExamples.response.text() || "none";
         return mostSimilarExample.trim().toLowerCase();
-      } catch (e) {
+      } catch (e: any) {
         console.error("Error fetching top example:", e);
+        if (e.message?.includes("API key not valid")) {
+          throw e;
+        }
         return "none";
       }
     }
@@ -97,8 +115,11 @@ export async function POST(request: NextRequest) {
         ]);
 
         userMessage = initialRes.response.text() ?? prompt;
-      } catch (e) {
+      } catch (e: any) {
         console.error("Error fetching architect plan:", e);
+        if (e.message?.includes("API key not valid")) {
+          throw e;
+        }
         userMessage = prompt;
       }
     } else if (fullScreenshotDescription) {
@@ -134,10 +155,14 @@ export async function POST(request: NextRequest) {
       messages,
       title,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating chat:", error);
     return NextResponse.json(
-      { error: "Failed to create chat" },
+      {
+        error: error.message?.includes("API key not valid")
+          ? "Invalid Gemini API Key. Please check your GEMINI_API_KEY."
+          : "Failed to create chat",
+      },
       { status: 500 },
     );
   }
