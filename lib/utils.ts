@@ -112,7 +112,7 @@ export type ReplySegment =
 export function parseReplySegments(markdown: string): ReplySegment[] {
   const segments: ReplySegment[] = [];
   const lines = markdown.split("\n");
-  const fenceRegex = /^```([^\n]*)$/; // opening or closing fence line
+  const fenceRegex = /^```([^\n]*?)\s*$/; // opening or closing fence line
 
   let textBuffer: string[] = [];
   let codeBuffer: string[] = [];
@@ -129,12 +129,12 @@ export function parseReplySegments(markdown: string): ReplySegment[] {
 
   for (const line of lines) {
     const match = line.match(fenceRegex);
-    if (match && !openTag) {
+    if (match && openTag === null) {
       // Opening fence
       openTag = match[1] || "";
       flushText();
       codeBuffer = [];
-    } else if (match && openTag) {
+    } else if (match && openTag !== null) {
       // Closing fence
       const { language, path } = parseTag(openTag);
       segments.push({
@@ -146,7 +146,7 @@ export function parseReplySegments(markdown: string): ReplySegment[] {
       });
       openTag = null;
       codeBuffer = [];
-    } else if (openTag) {
+    } else if (openTag !== null) {
       codeBuffer.push(line);
     } else {
       textBuffer.push(line);
@@ -154,7 +154,7 @@ export function parseReplySegments(markdown: string): ReplySegment[] {
   }
 
   // If a code fence remains open, emit a partial file segment
-  if (openTag) {
+  if (openTag !== null) {
     const { language, path } = parseTag(openTag);
     segments.push({
       type: "file",

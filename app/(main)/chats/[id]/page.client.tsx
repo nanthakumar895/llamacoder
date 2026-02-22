@@ -1,6 +1,7 @@
 "use client";
 
 import LogoSmall from "@/components/icons/logo-small";
+import { toast } from "@/hooks/use-toast";
 import {
   parseReplySegments,
   extractFirstCodeBlock,
@@ -51,16 +52,16 @@ export default function PageClient({ chat: initialChat }: { chat: Chat }) {
       isHandlingStreamRef.current = true;
       context.setStreamPromise(undefined);
 
-      const stream = await streamPromise;
-      let didPushToCode = false;
-      let didPushToPreview = false;
-
-      const reader = stream.getReader();
-      const decoder = new TextDecoder();
       let fullContent = "";
-      let partialLine = "";
-
       try {
+        const stream = await streamPromise;
+        let didPushToCode = false;
+        let didPushToPreview = false;
+
+        const reader = stream.getReader();
+        const decoder = new TextDecoder();
+        let partialLine = "";
+
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -105,6 +106,13 @@ export default function PageClient({ chat: initialChat }: { chat: Chat }) {
             }
           }
         }
+      } catch (e: any) {
+        console.error("Error handling stream:", e);
+        toast({
+          title: "Stream error",
+          description: e.message || "An error occurred while generating the response.",
+          variant: "destructive",
+        });
       } finally {
         const finalText = fullContent;
         // Get all previous assistant messages with files
@@ -247,7 +255,13 @@ export default function PageClient({ chat: initialChat }: { chat: Chat }) {
                         model: chat.model,
                       }),
                     },
-                  ).then((res) => {
+                  ).then(async (res) => {
+                    if (!res.ok) {
+                      const errorData = await res.json().catch(() => ({}));
+                      throw new Error(
+                        errorData.error || "Failed to start stream",
+                      );
+                    }
                     if (!res.body) {
                       throw new Error("No body on response");
                     }
