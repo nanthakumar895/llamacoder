@@ -8,9 +8,9 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, model, quality, screenshotUrl } = await request.json();
+    const { prompt, model, quality, screenshotUrl, apiKey: userApiKey } = await request.json();
 
-    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    const apiKey = (userApiKey || process.env.GEMINI_API_KEY)?.trim();
 
     if (!apiKey) {
       return NextResponse.json(

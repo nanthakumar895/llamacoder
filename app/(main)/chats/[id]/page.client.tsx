@@ -246,6 +246,7 @@ export default function PageClient({ chat: initialChat }: { chat: Chat }) {
                   saveChat(updatedChat);
                   setChat(updatedChat);
 
+                  const userApiKey = localStorage.getItem("gemini_api_key");
                   const promise = fetch(
                     "/api/get-next-completion-stream-promise",
                     {
@@ -253,6 +254,7 @@ export default function PageClient({ chat: initialChat }: { chat: Chat }) {
                       body: JSON.stringify({
                         messages: updatedChat.messages,
                         model: chat.model,
+                        apiKey: userApiKey,
                       }),
                     },
                   ).then(async (res) => {

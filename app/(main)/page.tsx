@@ -20,6 +20,8 @@ import {
   Github,
   User,
   X,
+  Settings,
+  Key,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Context } from "./providers";
@@ -46,10 +48,18 @@ export default function Home() {
 
   const [modelOpen, setModelOpen] = useState(false);
   const [qualityOpen, setQualityOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [userApiKey, setUserApiKey] = useState("");
+
   const modelRef = useRef<HTMLDivElement | null>(null);
   const qualityRef = useRef<HTMLDivElement | null>(null);
 
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    const savedKey = localStorage.getItem("gemini_api_key");
+    if (savedKey) setUserApiKey(savedKey);
+  }, []);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -117,6 +127,7 @@ export default function Home() {
             model,
             quality,
             screenshotUrl,
+            apiKey: userApiKey,
           }),
         });
 
@@ -142,7 +153,7 @@ export default function Home() {
 
         const streamPromise = fetch("/api/get-next-completion-stream-promise", {
           method: "POST",
-          body: JSON.stringify({ messages, model }),
+          body: JSON.stringify({ messages, model, apiKey: userApiKey }),
         }).then(async (res) => {
           if (!res.ok) {
             const errorData = await res.json().catch(() => ({}));
@@ -372,6 +383,51 @@ export default function Home() {
                 <ArrowUp className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
             </button>
+          </div>
+
+          <div className="mt-6 pt-6 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(!settingsOpen)}
+              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            >
+              <Settings className={`w-4 h-4 ${settingsOpen ? 'rotate-90' : ''} transition-transform duration-300`} />
+              <span>API Settings</span>
+            </button>
+
+            {settingsOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                className="mt-4 overflow-hidden"
+              >
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                  <div className="flex flex-col gap-2">
+                    <label htmlFor="api-key" className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                      <Key className="w-3 h-3" />
+                      Gemini API Key
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="api-key"
+                        type="password"
+                        value={userApiKey}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setUserApiKey(val);
+                          localStorage.setItem("gemini_api_key", val);
+                        }}
+                        placeholder="Enter your Gemini API key..."
+                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-400">
+                      Your API key is stored locally in your browser and never shared elsewhere.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
           </div>
         </Card>
 

@@ -28,7 +28,7 @@ function optimizeMessagesForTokens(
 
 export async function POST(req: Request) {
   try {
-    const { messages: rawMessages, model } = await req.json();
+    const { messages: rawMessages, model, apiKey: userApiKey } = await req.json();
 
     let messages = z
       .array(
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
 
     const lastMessage = truncatedHistory.pop();
 
-    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    const apiKey = (userApiKey || process.env.GEMINI_API_KEY)?.trim();
 
     if (!apiKey) {
       return new Response(

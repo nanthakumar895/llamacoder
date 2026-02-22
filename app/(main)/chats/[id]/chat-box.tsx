@@ -55,6 +55,7 @@ export default function ChatBox({
 
             const updatedMessages = [...chat.messages, newUserMessage];
 
+            const userApiKey = localStorage.getItem("gemini_api_key");
             const streamPromise = fetch(
               "/api/get-next-completion-stream-promise",
               {
@@ -62,6 +63,7 @@ export default function ChatBox({
                 body: JSON.stringify({
                   messages: updatedMessages,
                   model: chat.model,
+                  apiKey: userApiKey,
                 }),
               },
             ).then(async (res) => {
