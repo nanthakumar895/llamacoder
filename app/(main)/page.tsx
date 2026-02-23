@@ -6,10 +6,11 @@ import ArrowRightIcon from "@/components/icons/arrow-right";
 import LightningBoltIcon from "@/components/icons/lightning-bolt";
 import LoadingButton from "@/components/loading-button";
 import Spinner from "@/components/spinner";
+import { Switch } from "@/components/ui/switch";
 // @ts-ignore
 import bgImg from "@/public/halo.png";
 import * as Select from "@radix-ui/react-select";
-import { CheckIcon, ChevronDownIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, SettingsIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -43,6 +44,8 @@ export default function Home() {
     undefined,
   );
   const [screenshotLoading, setScreenshotLoading] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [userApiKey, setUserApiKey] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -51,6 +54,10 @@ export default function Home() {
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.focus();
+    }
+    const savedKey = localStorage.getItem("gemini_api_key");
+    if (savedKey) {
+      setUserApiKey(savedKey);
     }
   }, []);
 
@@ -146,6 +153,7 @@ export default function Home() {
                       model,
                       quality,
                       screenshotUrl,
+                      apiKey: userApiKey,
                     }),
                   });
 
@@ -173,7 +181,11 @@ export default function Home() {
                     "/api/get-next-completion-stream-promise",
                     {
                       method: "POST",
-                      body: JSON.stringify({ messages, model }),
+                      body: JSON.stringify({
+                        messages,
+                        model,
+                        apiKey: userApiKey,
+                      }),
                     },
                   ).then(async (res) => {
                     if (!res.ok) {
@@ -435,6 +447,61 @@ export default function Home() {
                   />
                 )}
               </div>
+
+              <div className="mt-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowSettings(!showSettings)}
+                    className="flex items-center gap-1.5 text-xs font-medium text-gray-500 transition hover:text-gray-700"
+                  >
+                    <SettingsIcon className="size-3.5" />
+                    API Settings
+                  </button>
+                </div>
+              </div>
+
+              {showSettings && (
+                <div className="mt-3 space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <div className="flex items-center justify-between">
+                    <label
+                      htmlFor="use-custom-key"
+                      className="text-xs font-medium text-gray-600"
+                    >
+                      Use your own Gemini API Key
+                    </label>
+                    <Switch
+                      id="use-custom-key"
+                      checked={!!userApiKey}
+                      onCheckedChange={(checked) => {
+                        if (!checked) {
+                          setUserApiKey("");
+                          localStorage.removeItem("gemini_api_key");
+                        }
+                      }}
+                    />
+                  </div>
+                  <input
+                    type="password"
+                    placeholder="Enter your Gemini API Key..."
+                    value={userApiKey}
+                    onChange={(e) => {
+                      const newKey = e.target.value;
+                      setUserApiKey(newKey);
+                      if (newKey) {
+                        localStorage.setItem("gemini_api_key", newKey);
+                      } else {
+                        localStorage.removeItem("gemini_api_key");
+                      }
+                    }}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-xs placeholder-gray-400 focus:border-blue-500 focus:outline-none"
+                  />
+                  <p className="text-[10px] text-gray-400">
+                    Your API key is stored locally in your browser and never
+                    sent to our servers except to make Gemini API requests.
+                  </p>
+                </div>
+              )}
 
               {error && (
                 <div className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-600">
