@@ -62,6 +62,7 @@ export default function ChatBox({
                 body: JSON.stringify({
                   messages: updatedMessages,
                   model: chat.model,
+                  apiKey: localStorage.getItem("gemini_api_key"),
                 }),
               },
             ).then(async (res) => {

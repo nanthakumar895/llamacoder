@@ -253,6 +253,7 @@ export default function PageClient({ chat: initialChat }: { chat: Chat }) {
                       body: JSON.stringify({
                         messages: updatedChat.messages,
                         model: chat.model,
+                        apiKey: localStorage.getItem("gemini_api_key"),
                       }),
                     },
                   ).then(async (res) => {
