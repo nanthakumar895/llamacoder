@@ -51,7 +51,7 @@ export function getMainCodingPrompt(mostSimilarExample: string) {
 
   **Code Quality:**
   - Use TypeScript exclusively
-  - Relative imports only (e.g., \`../components/Button\`)
+  - Use the \`@/\` alias for project imports: \`import { Button } from "@/components/ui/button"\`
   - Complete, runnable code with no placeholders
   - Interactive components with proper state management
   - No external API calls
@@ -67,8 +67,8 @@ export function getMainCodingPrompt(mostSimilarExample: string) {
 
   **Available Libraries:**
   - **UI Components:** Shadcn UI (foundation - ALREADY INSTALLED)
-    ⚠️ CRITICAL: These components are PRE-INSTALLED. NEVER output or redefine them. Import and CUSTOMIZE them for uniqueness.
-    ${shadcnDocs.map((component) => `- ${component.name}: ${component.importDocs}`).join("\n")}
+    ⚠️ CRITICAL: These components are PRE-INSTALLED. NEVER output or redefine them. Import them from \`@/components/ui/\` and CUSTOMIZE them for uniqueness.
+    ${shadcnDocs.map((component) => `- ${component.name}: ${component.importDocs.trim()}`).join("\n")}
 
     **Customization Guidelines:**
     - Always modify Shadcn components with custom styling, animations, or behavior
@@ -76,8 +76,7 @@ export function getMainCodingPrompt(mostSimilarExample: string) {
     - Combine multiple components creatively or extend them with custom props
     - Avoid using Shadcn components "as-is" - make them your own through customization
 
-  - **Icons:** Lucide React (limited selection)
-    Available: Heart, Shield, Clock, Users, Play, Home, Search, Menu, User, Settings, Mail, Bell, Calendar, Star, Upload, Download, Trash, Edit, Plus, Minus, Check, X, ArrowRight
+  - **Icons:** Lucide React (FULL library available)
     Import: \`import { IconName } from "lucide-react"\`
 
   - **Charts:** Recharts (only for dashboards/graphs)
@@ -87,7 +86,7 @@ export function getMainCodingPrompt(mostSimilarExample: string) {
   - **Date Formatting:** date-fns (NOT date-fns-tz)
 
    **Import Rules:**
-   - Use relative paths: \`import { Button } from "../components/ui/button"\`
+   - Use the \`@/\` alias for project imports: \`import { Button } from "@/components/ui/button"\`
    - Import React hooks directly: \`import { useState, useEffect } from "react"\`
    - No other libraries available (no zod, react-router, etc.)
 

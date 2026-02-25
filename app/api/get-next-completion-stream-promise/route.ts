@@ -1,30 +1,30 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from "zod";
 
-function optimizeMessagesForTokens(
-  messages: { role: "system" | "user" | "assistant"; content: string }[],
-): { role: "system" | "user" | "assistant"; content: string }[] {
-  // Strip code blocks from assistant messages except the last 2 to save tokens
-  const assistantIndices: number[] = [];
-  for (
-    let i = messages.length - 1;
-    i >= 0 && assistantIndices.length < 2;
-    i--
-  ) {
-    if (messages[i].role === "assistant") {
-      assistantIndices.push(i);
-    }
-  }
-  return messages.map((msg, index) => {
-    if (msg.role === "assistant" && !assistantIndices.includes(index)) {
-      return {
-        ...msg,
-        content: msg.content.replace(/```[\s\S]*?```/g, "").trim(),
-      };
-    }
-    return msg;
-  });
-}
+// function optimizeMessagesForTokens(
+//   messages: { role: "system" | "user" | "assistant"; content: string }[],
+// ): { role: "system" | "user" | "assistant"; content: string }[] {
+//   // Strip code blocks from assistant messages except the last 2 to save tokens
+//   const assistantIndices: number[] = [];
+//   for (
+//     let i = messages.length - 1;
+//     i >= 0 && assistantIndices.length < 2;
+//     i--
+//   ) {
+//     if (messages[i].role === "assistant") {
+//       assistantIndices.push(i);
+//     }
+//   }
+//   return messages.map((msg, index) => {
+//     if (msg.role === "assistant" && !assistantIndices.includes(index)) {
+//       return {
+//         ...msg,
+//         content: msg.content.replace(/```[\s\S]*?```/g, "").trim(),
+//       };
+//     }
+//     return msg;
+//   });
+// }
 
 export async function POST(req: Request) {
   try {
@@ -39,7 +39,8 @@ export async function POST(req: Request) {
       )
       .parse(rawMessages);
 
-    messages = optimizeMessagesForTokens(messages);
+    // Skip token optimization as Gemini has a large context window and needs code blocks for context
+    // messages = optimizeMessagesForTokens(messages);
 
     const systemMessage = messages.find((m) => m.role === "system")?.content;
     const otherMessages = messages.filter((m) => m.role !== "system");
