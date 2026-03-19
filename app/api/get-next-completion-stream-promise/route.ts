@@ -1,6 +1,27 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from "zod";
 
+// Simple rate limiter for free tier
+const requestTimestamps = new Map<string, number[]>();
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const MAX_REQUESTS_PER_MINUTE = 15; // Free tier limit
+
+function checkRateLimit(identifier: string): boolean {
+  const now = Date.now();
+  const timestamps = requestTimestamps.get(identifier) || [];
+  
+  // Remove timestamps older than the window
+  const recentTimestamps = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW);
+  
+  if (recentTimestamps.length >= MAX_REQUESTS_PER_MINUTE) {
+    return false; // Rate limited
+  }
+  
+  recentTimestamps.push(now);
+  requestTimestamps.set(identifier, recentTimestamps);
+  return true;
+}
+
 function optimizeMessagesForTokens(
   messages: { role: "system" | "user" | "assistant"; content: string }[],
 ): { role: "system" | "user" | "assistant"; content: string }[] {
@@ -29,6 +50,21 @@ function optimizeMessagesForTokens(
 export async function POST(req: Request) {
   try {
     const { messages: rawMessages, model, apiKey: userApiKey } = await req.json();
+
+    // Check rate limit (using a simple identifier)
+    const rateLimitId = "global";
+    if (!checkRateLimit(rateLimitId)) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "Rate limit exceeded. Please wait a moment before making another request. Using the free tier of Gemini API with limits.",
+        }),
+        {
+          status: 429,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
 
     let messages = z
       .array(
