@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     const otherMessages = messages.filter((m) => m.role !== "system");
 
     // Merge consecutive messages with the same role and convert to Gemini format
-    const history = otherMessages.reduce((acc, curr) => {
+    let history = otherMessages.reduce((acc, curr) => {
       const role = curr.role === "assistant" ? "model" : "user";
       if (acc.length > 0 && acc[acc.length - 1].role === role) {
         acc[acc.length - 1].parts[0].text += "\n\n" + curr.content;
@@ -57,6 +57,17 @@ export async function POST(req: Request) {
       }
       return acc;
     }, [] as any[]);
+
+    // If there's a system message and no history, prepend it as the first user message
+    if (systemMessage && history.length === 0) {
+      history.push({
+        role: "user",
+        parts: [{ text: systemMessage }],
+      });
+    } else if (systemMessage && history.length > 0 && history[0].role === "user") {
+      // Prepend system message to first user message
+      history[0].parts[0].text = systemMessage + "\n\n" + history[0].parts[0].text;
+    }
 
     // Truncate history if too long, ensuring we don't break alternating roles
     // Since we merged consecutive roles, any slice will still alternate.
@@ -99,7 +110,6 @@ export async function POST(req: Request) {
 
     const chat = geminiModel.startChat({
       history: truncatedHistory,
-      systemInstruction: systemMessage,
     });
 
     const result = await chat.sendMessageStream(lastMessage?.parts[0].text || "");
