@@ -1,25 +1,16 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from "zod";
 
-// Simple rate limiter for free tier
-const requestTimestamps = new Map<string, number[]>();
-const RATE_LIMIT_WINDOW = 60000; // 1 minute
-const MAX_REQUESTS_PER_MINUTE = 15; // Free tier limit
+// Strict rate limiter for Gemini free tier
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 4000; // 4 seconds between requests (free tier is ~15 req/min)
 
-function checkRateLimit(identifier: string): boolean {
-  const now = Date.now();
-  const timestamps = requestTimestamps.get(identifier) || [];
-  
-  // Remove timestamps older than the window
-  const recentTimestamps = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW);
-  
-  if (recentTimestamps.length >= MAX_REQUESTS_PER_MINUTE) {
-    return false; // Rate limited
-  }
-  
-  recentTimestamps.push(now);
-  requestTimestamps.set(identifier, recentTimestamps);
-  return true;
+function getTimeSinceLastRequest(): number {
+  return Date.now() - lastRequestTime;
+}
+
+function updateLastRequestTime(): void {
+  lastRequestTime = Date.now();
 }
 
 function optimizeMessagesForTokens(
@@ -51,17 +42,17 @@ export async function POST(req: Request) {
   try {
     const { messages: rawMessages, model, apiKey: userApiKey } = await req.json();
 
-    // Check rate limit (using a simple identifier)
-    const rateLimitId = "global";
-    if (!checkRateLimit(rateLimitId)) {
+    // Enforce rate limit for free tier
+    const timeSinceLastRequest = getTimeSinceLastRequest();
+    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+      const waitTimeSeconds = Math.ceil((MIN_REQUEST_INTERVAL - timeSinceLastRequest) / 1000);
       return new Response(
         JSON.stringify({
-          error:
-            "Rate limit exceeded. Please wait a moment before making another request. Using the free tier of Gemini API with limits.",
+          error: `Rate limit: Please wait ${waitTimeSeconds}s before next request. Free tier allows ~4s between requests.`,
         }),
         {
           status: 429,
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "Retry-After": String(waitTimeSeconds) },
         },
       );
     }
@@ -148,6 +139,9 @@ export async function POST(req: Request) {
       history: truncatedHistory,
     });
 
+    // Update last request time right before making the API call
+    updateLastRequestTime();
+
     const result = await chat.sendMessageStream(lastMessage?.parts[0].text || "");
 
     const stream = new ReadableStream({
@@ -193,7 +187,23 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("Error in get-next-completion-stream-promise:", error);
-    return new Response(JSON.stringify({ error: (error as Error).message }), {
+    
+    const errorMessage = (error as Error).message || "Unknown error";
+    
+    // Handle quota exceeded errors
+    if (errorMessage.includes("429") || errorMessage.includes("quota") || errorMessage.includes("Quota exceeded")) {
+      return new Response(
+        JSON.stringify({
+          error: "Gemini API free tier quota exceeded. Please wait a few hours or upgrade to a paid plan at https://aistudio.google.com",
+        }),
+        {
+          status: 429,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+    
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
