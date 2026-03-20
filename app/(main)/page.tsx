@@ -55,10 +55,7 @@ export default function Home() {
     if (textareaRef.current) {
       textareaRef.current.focus();
     }
-    const savedKey = localStorage.getItem("gemini_api_key");
-    if (savedKey) {
-      setUserApiKey(savedKey);
-    }
+    // API key is now handled via environment variables
   }, []);
 
   const selectedModel = useMemo(
@@ -112,9 +109,8 @@ export default function Home() {
         <div className="mt-10 flex grow flex-col items-center px-4 lg:mt-16">
           <div className="mb-4 inline-flex shrink-0 items-center rounded-full border-[0.5px] border-[#BABABA] px-3.5 py-1.5 text-xs text-black transition-shadow">
             <span className="text-center">
-              Powered by <span className="font-semibold">Gemini AI</span>.
-              Used by
-              <span className="font-semibold"> 1.1M+ users. </span>
+              Powered by <span className="font-semibold">OpenAI & Vercel AI</span>.
+              Turn ideas into apps instantly.
             </span>
           </div>
 
@@ -474,10 +470,9 @@ export default function Home() {
                       id="use-custom-key"
                       checked={!!userApiKey}
                       onCheckedChange={(checked) => {
-                        if (!checked) {
-                          setUserApiKey("");
-                          localStorage.removeItem("gemini_api_key");
-                        }
+  if (!checked) {
+  setUserApiKey("");
+  }
                       }}
                     />
                   </div>
@@ -487,12 +482,7 @@ export default function Home() {
                     value={userApiKey}
                     onChange={(e) => {
                       const newKey = e.target.value;
-                      setUserApiKey(newKey);
-                      if (newKey) {
-                        localStorage.setItem("gemini_api_key", newKey);
-                      } else {
-                        localStorage.removeItem("gemini_api_key");
-                      }
+  setUserApiKey(newKey);
                     }}
                     className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-xs placeholder-gray-400 focus:border-blue-500 focus:outline-none"
                   />
