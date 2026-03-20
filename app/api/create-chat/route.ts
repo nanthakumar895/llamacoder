@@ -4,48 +4,31 @@ import {
   screenshotToCodePrompt,
   softwareArchitectPrompt,
 } from "@/lib/prompts";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateText } from "ai";
+import { openai } from "@ai-sdk/openai";
 
 export async function POST(request: NextRequest) {
   try {
     const { prompt, model, quality, screenshotUrl, apiKey: userApiKey } = await request.json();
 
-    const apiKey = (userApiKey || process.env.GEMINI_API_KEY)?.trim();
-
-    if (!apiKey) {
-      return NextResponse.json(
-        {
-          error:
-            "Missing Gemini API Key. Please add GEMINI_API_KEY to your .env file.",
-        },
-        { status: 401 },
-      );
-    }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const geminiModel = genAI.getGenerativeModel({
-      model: model || "gemini-1.5-flash",
-    });
-
     async function fetchTitle() {
       try {
-        const responseForChatTitle = await geminiModel.generateContent(
-          `You are a chatbot helping the user create a simple app or script, and your current job is to create a succinct title, maximum 3-5 words, for the chat given their initial prompt: "${prompt}". Please return only the title.`,
-        );
-        return responseForChatTitle.response.text() || prompt;
+        const { text: responseText } = await generateText({
+          model: openai("gpt-4o-mini"),
+          prompt: `You are a chatbot helping the user create a simple app or script, and your current job is to create a succinct title, maximum 3-5 words, for the chat given their initial prompt: "${prompt}". Please return only the title.`,
+        });
+        return responseText || prompt;
       } catch (e: any) {
         console.error("Error fetching title:", e);
-        if (e.message?.includes("API key not valid")) {
-          throw e;
-        }
         return prompt;
       }
     }
 
     async function fetchTopExample() {
       try {
-        const findSimilarExamples = await geminiModel.generateContent(
-          `You are a helpful bot. Given a request for building an app, you match it to the most similar example provided. If the request is NOT similar to any of the provided examples, return "none". Here is the list of examples, ONLY reply with one of them OR "none":
+        const { text: responseText } = await generateText({
+          model: openai("gpt-4o-mini"),
+          prompt: `You are a helpful bot. Given a request for building an app, you match it to the most similar example provided. If the request is NOT similar to any of the provided examples, return "none". Here is the list of examples, ONLY reply with one of them OR "none":
 
               - landing page
               - blog app
@@ -53,16 +36,12 @@ export async function POST(request: NextRequest) {
               - pomodoro timer
 
               Request: ${prompt}`,
-        );
+        });
 
-        const mostSimilarExample =
-          findSimilarExamples.response.text() || "none";
+        const mostSimilarExample = responseText || "none";
         return mostSimilarExample.trim().toLowerCase();
       } catch (e: any) {
         console.error("Error fetching top example:", e);
-        if (e.message?.includes("API key not valid")) {
-          throw e;
-        }
         return "none";
       }
     }
@@ -85,41 +64,45 @@ export async function POST(request: NextRequest) {
       }
 
       if (base64Data) {
-        const screenshotResponse = await geminiModel.generateContent([
-          {
-            inlineData: {
-              data: base64Data,
-              mimeType,
+        const { text: screenshotText } = await generateText({
+          model: openai("gpt-4o-mini"),
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image",
+                  image: base64Data,
+                },
+                {
+                  type: "text",
+                  text: screenshotToCodePrompt,
+                },
+              ],
             },
-          },
-          { text: screenshotToCodePrompt },
-        ]);
-
-        fullScreenshotDescription = screenshotResponse.response.text();
+          ],
+        });
+        fullScreenshotDescription = screenshotText;
       }
     }
 
     let userMessage: string;
     if (quality === "high") {
       try {
-        const architectModel = genAI.getGenerativeModel({
-          model: "gemini-1.5-pro",
+        const { text: architectText } = await generateText({
+          model: openai("gpt-4o"),
+          messages: [
+            {
+              role: "user",
+              content: softwareArchitectPrompt + "\n\n" + (fullScreenshotDescription
+                ? fullScreenshotDescription + prompt
+                : prompt),
+            },
+          ],
         });
-        let initialRes = await architectModel.generateContent([
-          { text: softwareArchitectPrompt },
-          {
-            text: fullScreenshotDescription
-              ? fullScreenshotDescription + prompt
-              : prompt,
-          },
-        ]);
-
-        userMessage = initialRes.response.text() ?? prompt;
+        userMessage = architectText ?? prompt;
       } catch (e: any) {
         console.error("Error fetching architect plan:", e);
-        if (e.message?.includes("API key not valid")) {
-          throw e;
-        }
         userMessage = prompt;
       }
     } else if (fullScreenshotDescription) {
@@ -159,9 +142,7 @@ export async function POST(request: NextRequest) {
     console.error("Error creating chat:", error);
     return NextResponse.json(
       {
-        error: error.message?.includes("API key not valid")
-          ? "Invalid Gemini API Key. Please check your GEMINI_API_KEY."
-          : "Failed to create chat",
+        error: "Failed to create chat",
       },
       { status: 500 },
     );
