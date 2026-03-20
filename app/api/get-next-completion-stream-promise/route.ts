@@ -51,9 +51,9 @@ export async function POST(req: Request) {
         content: m.content,
       }));
 
-    // Use gpt-4o-mini for faster responses with good quality
+    // Use gpt-3.5-turbo for streaming responses
     const result = await streamText({
-      model: openai("gpt-4o-mini"),
+      model: openai("gpt-3.5-turbo"),
       system: systemMessage,
       messages: conversationMessages,
       temperature: 0.7,
