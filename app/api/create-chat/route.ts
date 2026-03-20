@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     async function fetchTitle() {
       try {
         const { text: responseText } = await generateText({
-          model: openai("gpt-4-turbo"),
+          model: openai("gpt-4o"),
           prompt: `You are a chatbot helping the user create a simple app or script, and your current job is to create a succinct title, maximum 3-5 words, for the chat given their initial prompt: "${prompt}". Please return only the title.`,
         });
         return responseText || prompt;
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     async function fetchTopExample() {
       try {
         const { text: responseText } = await generateText({
-          model: openai("gpt-4-turbo"),
+          model: openai("gpt-4o"),
           prompt: `You are a helpful bot. Given a request for building an app, you match it to the most similar example provided. If the request is NOT similar to any of the provided examples, return "none". Here is the list of examples, ONLY reply with one of them OR "none":
 
               - landing page
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
       if (base64Data) {
         const { text: screenshotText } = await generateText({
-          model: openai("gpt-4-turbo"),
+          model: openai("gpt-4o"),
           messages: [
             {
               role: "user",
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     if (quality === "high") {
       try {
         const { text: architectText } = await generateText({
-          model: openai("gpt-4-turbo"),
+          model: openai("gpt-4o"),
           messages: [
             {
               role: "user",
