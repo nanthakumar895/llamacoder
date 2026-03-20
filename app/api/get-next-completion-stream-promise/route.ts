@@ -51,9 +51,9 @@ export async function POST(req: Request) {
         content: m.content,
       }));
 
-    // Use gpt-3.5-turbo for streaming responses
+    // Use gpt-4-turbo for code generation with streaming
     const result = await streamText({
-      model: openai("gpt-3.5-turbo"),
+      model: openai("gpt-4-turbo"),
       system: systemMessage,
       messages: conversationMessages,
       temperature: 0.7,

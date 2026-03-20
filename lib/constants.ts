@@ -6,8 +6,8 @@ export interface Model {
 
 export const MODELS: Model[] = [
   {
-    label: "GPT-3.5 Turbo",
-    value: "gpt-3.5-turbo",
+    label: "GPT-4 Turbo",
+    value: "gpt-4-turbo",
   },
 ];
 
